@@ -1,4 +1,4 @@
-# lexer.py
+# mathscript/lexer.py
 
 import re
 
@@ -21,41 +21,41 @@ class Lexer:
 
         # Define token specifications
         self.token_specification = [
-            ('NUMBER',   r'\d+(\.\d*)?'),       # Integer or decimal number
-            ('IDENT',    r'[A-Za-z_][\w_]*'),   # Identifiers
-            ('OP',       r'[+\-*/^=<>≤≥≠()]'),  # Operators and delimiters
-            ('SUM',      r'∑'),                 # Summation symbol
-            ('PROD',     r'∏'),                 # Product symbol
-            ('INT',      r'∫'),                 # Integral symbol
-            ('COMMA',    r','),                 # Comma separator
-            ('NEWLINE',  r'\n'),                # Line endings
-            ('SKIP',     r'[ \t]+'),            # Skip spaces and tabs
-            ('MISMATCH', r'.'),                 # Any other character
+            ('NUMBER',   r'\d+(\.\d*)?'),               # Integer or decimal number
+            ('STRING',   r'"(.*?)"'),                   # String literals
+            ('IDENT',    r'[A-Za-z_][\w_]*'),           # Identifiers
+            ('OP',       r'[+\-*/^=<>()%,]'),           # Operators and delimiters
+            ('KEYWORD',  r'\b(function|if|else|for|while|return|and|or|not|in|range|print|input)\b'),  # Keywords
+            ('NEWLINE',  r'\n'),                        # Line endings
+            ('SKIP',     r'[ \t]+'),                    # Skip spaces and tabs
+            ('MISMATCH', r'.'),                         # Any other character
         ]
         self.token_regex = '|'.join('(?P<%s>%s)' % pair for pair in self.token_specification)
         self.get_token = re.compile(self.token_regex).match
 
     def tokenize(self):
         tokens = []
-        mo = self.get_token(self.code)
-        while mo is not None:
-            kind = mo.lastgroup
-            value = mo.group(kind)
-            if kind == 'NUMBER':
-                tokens.append(Token('NUMBER', value, self.line, self.column))
-            elif kind == 'IDENT':
-                tokens.append(Token('IDENT', value, self.line, self.column))
-            elif kind in ('OP', 'SUM', 'PROD', 'INT', 'COMMA'):
-                tokens.append(Token(kind, value, self.line, self.column))
-            elif kind == 'NEWLINE':
-                self.line += 1
-                self.column = 0
-            elif kind == 'SKIP':
-                pass
-            elif kind == 'MISMATCH':
-                raise SyntaxError(f'Unexpected character {value!r} at line {self.line} column {self.column}')
-            self.pos = mo.end()
-            self.column += mo.end() - mo.start()
-            mo = self.get_token(self.code, self.pos)
-        tokens.append(Token('EOF', line=self.line, column=self.column))
+        code = self.code
+        pos = 0
+        line = 1
+        column = 1
+        while pos < len(code):
+            match = self.get_token(code, pos)
+            if match:
+                kind = match.lastgroup
+                value = match.group(kind)
+                if kind == 'NEWLINE':
+                    line += 1
+                    column = 1
+                elif kind == 'SKIP':
+                    column += len(value)
+                elif kind == 'MISMATCH':
+                    raise SyntaxError(f'Unexpected character {value!r} at line {line} column {column}')
+                else:
+                    tokens.append(Token(kind, value, line, column))
+                    column += len(value)
+                pos = match.end()
+            else:
+                raise SyntaxError(f'Unexpected character {code[pos]!r} at line {line} column {column}')
+        tokens.append(Token('EOF', line=line, column=column))
         return tokens
