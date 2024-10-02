@@ -3,7 +3,7 @@
 import re
 
 class Token:
-    def __init__(self, type_, value=None, line=0, column=0):
+    def __init__(self, type_, value=None, line=1, column=1):
         self.type = type_
         self.value = value
         self.line = line
@@ -15,47 +15,54 @@ class Token:
 class Lexer:
     def __init__(self, code):
         self.code = code
-        self.pos = 0
+        self.tokens = []
+        self.current_pos = 0
         self.line = 1
         self.column = 1
 
-        # Define token specifications
+        # Define token patterns
         self.token_specification = [
             ('NUMBER',   r'\d+(\.\d*)?'),               # Integer or decimal number
-            ('STRING',   r'"(.*?)"'),                   # String literals
-            ('IDENT',    r'[A-Za-z_][\w_]*'),           # Identifiers
-            ('OP',       r'[+\-*/^=<>()%,]'),           # Operators and delimiters
-            ('KEYWORD',  r'\b(function|if|else|for|while|return|and|or|not|in|range|print|input)\b'),  # Keywords
+            ('STRING',   r'"[^"\\]*(\\.[^"\\]*)*"'),    # String literals
+            ('IDENT',    r'[A-Za-z_][A-Za-z0-9_]*'),    # Identifiers
+            ('ASSIGN',   r'='),                         # Assignment operator
+            ('LPAREN',   r'\('),                        # Left Parenthesis
+            ('RPAREN',   r'\)'),                        # Right Parenthesis
+            ('LBRACE',   r'\{'),                        # Left Brace
+            ('RBRACE',   r'\}'),                        # Right Brace
+            ('COMMA',    r','),                         # Comma
+            ('COLON',    r':'),                         # Colon
+            ('OP',       r'[\+\-\*/\^%]'),              # Arithmetic operators
+            ('COMPARE',  r'==|!=|<=|>=|<|>'),           # Comparison operators
             ('NEWLINE',  r'\n'),                        # Line endings
             ('SKIP',     r'[ \t]+'),                    # Skip spaces and tabs
+            ('COMMENT',  r'#.*'),                       # Comments
+            ('KEYWORD',  r'\b(function|if|else|elif|for|while|return|and|or|not|in|true|false)\b'),  # Keywords
             ('MISMATCH', r'.'),                         # Any other character
         ]
+
         self.token_regex = '|'.join('(?P<%s>%s)' % pair for pair in self.token_specification)
         self.get_token = re.compile(self.token_regex).match
 
     def tokenize(self):
-        tokens = []
         code = self.code
         pos = 0
-        line = 1
-        column = 1
         while pos < len(code):
             match = self.get_token(code, pos)
             if match:
                 kind = match.lastgroup
                 value = match.group(kind)
                 if kind == 'NEWLINE':
-                    line += 1
-                    column = 1
-                elif kind == 'SKIP':
-                    column += len(value)
+                    self.line += 1
+                    self.column = 1
+                elif kind == 'SKIP' or kind == 'COMMENT':
+                    pass
                 elif kind == 'MISMATCH':
-                    raise SyntaxError(f'Unexpected character {value!r} at line {line} column {column}')
+                    raise RuntimeError(f'{value!r} unexpected on line {self.line}')
                 else:
-                    tokens.append(Token(kind, value, line, column))
-                    column += len(value)
+                    self.tokens.append(Token(kind, value, self.line, self.column))
                 pos = match.end()
             else:
-                raise SyntaxError(f'Unexpected character {code[pos]!r} at line {line} column {column}')
-        tokens.append(Token('EOF', line=line, column=column))
-        return tokens
+                raise RuntimeError(f'Unexpected character {code[pos]} on line {self.line}')
+        self.tokens.append(Token('EOF', line=self.line, column=self.column))
+        return self.tokens
